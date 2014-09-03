@@ -1,3 +1,7 @@
+##
+# crawler all the data from url web.
+##
+
 import urllib2
 import datetime
 import os
