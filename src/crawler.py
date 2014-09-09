@@ -20,6 +20,7 @@ cf.read("conf.ini")
 URL = cf.get('crawler', 'URL') 
 DATE_FORMAT = cf.get('crawler', 'DATE_FORMAT')
 DATA_DIR = cf.get('crawler', 'DATA_DIR')
+ALL_FILE = cf.get('crawler', 'ALL_FILE')
 MAX_DUR = cf.getint('crawler', 'MAX_DUR')
 START_DATE = cf.get('crawler', 'START_DATE')
 
@@ -30,14 +31,14 @@ db_port = cf.get('db', 'port')
 def get_date_format(date_time):
     return date_time.strftime(DATE_FORMAT) 
 
-def get_date_list(dur):
-    n, date = 0, datetime.datetime.now()
-    while(n < dur):
+def get_date_list():
+    date = datetime.datetime.strptime(START_DATE, DATE_FORMAT)
+    today = get_date_format(datetime.datetime.now())
+    while(True):
         form_date = get_date_format(date)
-        if(form_date < START_DATE): break
+        if (form_date > today): break
         yield form_date
-        date = date + datetime.timedelta(-1)
-        n += 1
+        date = date + datetime.timedelta(1)
         
 def get_url(date):
     return URL + date
@@ -77,15 +78,19 @@ def parse_page(page):
 
 def write_file(date, data):
     fp = open(os.path.join(DATA_DIR, date), 'w')
+    fpa = open(os.path.join(DATA_DIR, ALL_FILE), 'a+')
     data = sorted(data, key = lambda x: x['period'])
     def write_one_record(record):
-        pri = record['period'] + ": " + record['win_number'] + " ; " + str(record['win_sum']) + '\n'
+        pri = record['period'] + ": " + record['win_number'] + ": " + str(record['win_sum']) + '\n'
         fp.write(pri)
+        fpa.write(pri)
 
     map(write_one_record, data)
     fp.close()
+    fpa.close()
 
 def store_db(date, data):
+    #TODO if date is exsits, update
     db = mongo(db_name)
     db.insert('win_number', {'date': date, 'data': data})
 
@@ -98,15 +103,16 @@ def process_date(date):
                get_page(
                    get_url(date)))
     #print date, data
-    store(date, data)
+    if (len(data) > 0):
+        store(date, data)
 
 def main():
     try:
-        date_list = get_date_list(MAX_DUR)
-        #map(process_date, date_list)
-        for date in date_list:
-            p = Process(target=process_date, args=(date,))
-            p.start()
+        date_list = get_date_list()
+        map(process_date, date_list)
+        #for date in date_list:
+        #    p = Process(target=process_date, args=(date,))
+        #    p.start()
     except Exception, e:
         msg = traceback.format_exc()            
         open('log/log.txt', 'w+').write(msg)
